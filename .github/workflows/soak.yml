@@ -41,17 +41,22 @@ permissions:
   contents: read
 
 jobs:
-  soak:
+  # ── Unix: full matrix (linux amd64+arm64, darwin arm64+amd64) ──────────────
+  soak-unix:
     strategy:
       fail-fast: false
       matrix:
-        # Limited to the two platforms where soak-test.sh's RSS reading works
-        # well, to bound cost (no windows / no arm here).
         include:
           - os: ubuntu-latest
             cc: gcc
             cxx: g++
+          - os: ubuntu-24.04-arm
+            cc: gcc
+            cxx: g++
           - os: macos-14
+            cc: cc
+            cxx: c++
+          - os: macos-15-intel
             cc: cc
             cxx: c++
     runs-on: ${{ matrix.os }}
@@ -84,5 +89,42 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: soak-${{ matrix.os }}-${{ inputs.mode || 'query-leak' }}
+          path: soak-results/
+          retention-days: 14
+
+  # ── Windows: the platform #581 actually crashes on (50+ GB → crash) ───────
+  soak-windows:
+    runs-on: windows-latest
+    timeout-minutes: 320
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2
+        with:
+          msystem: CLANG64
+          path-type: inherit
+          install: >-
+            mingw-w64-clang-x86_64-clang
+            mingw-w64-clang-x86_64-zlib
+            mingw-w64-clang-x86_64-python3
+            make
+            git
+            coreutils
+      - name: Build (prod binary)
+        shell: msys2 {0}
+        run: scripts/build.sh CC=clang CXX=clang++
+      - name: Soak
+        shell: msys2 {0}
+        env:
+          CBM_SOAK_MODE: ${{ inputs.mode || 'query-leak' }}
+          DURATION_MINUTES: ${{ inputs.duration_minutes || '240' }}
+        run: |
+          BIN=build/c/codebase-memory-mcp
+          [ -f "${BIN}.exe" ] && BIN="${BIN}.exe"
+          scripts/soak-test.sh "$BIN" "${DURATION_MINUTES}"
+      - name: Upload metrics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: soak-windows-${{ inputs.mode || 'query-leak' }}
           path: soak-results/
           retention-days: 14
