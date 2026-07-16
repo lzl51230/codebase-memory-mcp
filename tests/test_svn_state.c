@@ -129,7 +129,7 @@ TEST(discovery_excluded_candidate_directory_is_not_hashed) {
     char directory[1024];
     char source[1024];
     snprintf(directory, sizeof(directory), "%s/node_modules", root);
-    ASSERT_EQ(mkdir(directory, 0755), 0);
+    ASSERT_EQ(cbm_mkdir(directory), 0);
     snprintf(source, sizeof(source), "%s/ignored.js", directory);
     ASSERT_EQ(th_write_file(source, "function Hidden() {}\n"), 0);
 
@@ -155,8 +155,8 @@ TEST(client_init_skips_executable_in_current_directory) {
     char fake[1200];
     snprintf(watched, sizeof(watched), "%s/watched", base);
     snprintf(hostile, sizeof(hostile), "%s/hostile", base);
-    ASSERT_EQ(mkdir(watched, 0755), 0);
-    ASSERT_EQ(mkdir(hostile, 0755), 0);
+    ASSERT_EQ(cbm_mkdir(watched), 0);
+    ASSERT_EQ(cbm_mkdir(hostile), 0);
 #ifdef _WIN32
     snprintf(fake, sizeof(fake), "%s/svn.exe", hostile);
     const char delimiter = ';';
